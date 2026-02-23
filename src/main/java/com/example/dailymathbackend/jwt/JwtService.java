@@ -1,6 +1,7 @@
 package com.example.dailymathbackend.jwt;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
@@ -40,11 +41,15 @@ public class JwtService {
     }
 
     public boolean isTokenValid(String token, UserDetails user) {
-        String username = extractUsername(token);
-        return username.equals(user.getUsername()) && !IsExpired(token);
+        try {
+            String username = extractUsername(token);
+            return username.equals(user.getUsername()) && !isExpired(token);
+        } catch (JwtException | IllegalArgumentException e) {
+            return false;
+        }
     }
 
-    private boolean IsExpired(String token) {
+    private boolean isExpired(String token) {
         Date exp = parseClaims(token).getExpiration();
         return exp.before(new Date());
     }

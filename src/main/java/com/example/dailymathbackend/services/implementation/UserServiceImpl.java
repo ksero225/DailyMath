@@ -1,5 +1,7 @@
 package com.example.dailymathbackend.services.implementation;
 
+import com.example.dailymathbackend.domain.dto.LoginRequestDto;
+import com.example.dailymathbackend.domain.dto.LoginResponseDto;
 import com.example.dailymathbackend.domain.dto.RegisterRequestDto;
 import com.example.dailymathbackend.domain.dto.RegisterResponseDto;
 import com.example.dailymathbackend.domain.entity.UserEntity;
@@ -8,6 +10,7 @@ import com.example.dailymathbackend.repositories.UserRepository;
 import com.example.dailymathbackend.services.interfaces.UserService;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -38,18 +41,42 @@ public class UserServiceImpl implements UserService {
 
         UserEntity newUser = UserEntity.builder()
                 .userEmail(request.mail())
+                .userName(request.login())
                 .userLogin(request.login())
                 .userPasswordHash(passwordEncoder.encode(request.password()))
                 .build();
 
         UserEntity savedUser = userRepository.save(newUser);
 
-        String token = jwtService.generateToken(
-                org.springframework.security.core.userdetails.User
-                        .withUserDetails(savedUser.getUserLogin())
-                        .password(savedUser.getUserPasswordHash())
-        )
+        UserDetails userDetails = org.springframework.security.core.userdetails.User.builder()
+                .username(savedUser.getUserName())
+                .password(savedUser.getUserPasswordHash())
+                .roles("USER")
+                .build();
 
-        return RegisterResponseDto.builder().token().email(newUser.getUserEmail()).build();
+        String token = jwtService.generateToken(userDetails);
+
+        return new RegisterResponseDto(token, savedUser.getUserName(), savedUser.getUserEmail());
+    }
+
+    @Override
+    public LoginResponseDto login(LoginRequestDto request) {
+        UserEntity foundUser = userRepository.findByUserEmail(request.mail())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
+
+
+        if (!passwordEncoder.matches(request.password(), foundUser.getUserPasswordHash())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Wrong password");
+        }
+
+        UserDetails userDetails = org.springframework.security.core.userdetails.User.builder()
+                .username(foundUser.getUserEmail())
+                .password(foundUser.getUserPasswordHash())
+                .roles("USER")
+                .build();
+
+        String token = jwtService.generateToken(userDetails);
+
+        return new LoginResponseDto(token, foundUser.getUserName(), foundUser.getUserEmail());
     }
 }
